@@ -1,5 +1,5 @@
-# Core app
-streamlit>=1.40
+# Core app (file upload in chat needs streamlit >= 1.43)
+streamlit>=1.43
 plotly>=5.24
 pandas>=2.2
 python-dotenv>=1.0
