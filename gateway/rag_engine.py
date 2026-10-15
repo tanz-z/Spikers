@@ -1,27 +1,52 @@
 """
-gateway/rag_engine.py - Access-Controlled RAG Engine using ChromaDB
+gateway/rag_engine.py - Access-Controlled RAG Engine (ChromaDB)
 Owner: Bhoomi
 
-Features:
-- Role/User-based access control filtering (PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED)
-- Over-fetching strategy (fetches 3x candidates, filters by permission)
-- Realistic seed documents for HR, Finance, DevOps, Legal, and Public domain
-- Detailed access violation logging (returns denied docs for UI warnings)
+Interface contract (Tanya's pipeline.py calls this):
+    query(query_text, user_id, n_results=3) -> {
+        "context": str,            # "" when nothing relevant AND allowed
+        "allowed_docs": [...],     # relevant docs the user may read
+        "denied_docs": [...],      # relevant docs the user may NOT read
+        "access_violation": bool,  # True only if a RELEVANT doc was denied
+        ...
+    }
+
+Design notes
+- Cosine space: similarity = 1 - distance, so the score is meaningful.
+- Relevance cutoff: documents below MIN_SIMILARITY are ignored entirely.
+  Without it every query returns every document and every non-privileged
+  user is flagged for an "access violation" on every request.
+- Access control is enforced BEFORE any text reaches the LLM: denied
+  documents never contribute to `context`.
 """
 
-import os
 import json
-import chromadb
-from typing import List, Dict, Any, Optional
+import os
+from typing import Any, Dict, List, Optional
 
-# Path where persistent vector database will be stored
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chroma_db")
+import chromadb
+
+try:  # pick up RAG_MIN_SIMILARITY from .env if present
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:  # pragma: no cover
+    pass
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "chroma_db")
+
+# v2 = cosine distance. (v1 used Chroma's default L2 and cannot be converted.)
+COLLECTION_NAME = "security_gateway_docs_v2"
+
+# Tune with `python -m gateway.rag_engine` (prints similarity for every doc).
+DEFAULT_MIN_SIMILARITY = 0.25
+
+_UNAUTHENTICATED = {"", "anonymous", "none", "null"}
 
 
 class AccessControlledRAG:
-    """RAG vector store with fine-grained access control."""
+    """RAG vector store with document-level access control."""
 
-    # Realistic Seed Documents
     SEED_DOCUMENTS = [
         {
             "id": "doc_hr_01",
@@ -29,7 +54,7 @@ class AccessControlledRAG:
             "content": "CONFIDENTIAL HR DATA: Employee Salary List 2024. Rahul Sharma: ₹18,50,000. Priya Verma (PAN: ABCPV1234K, Aadhaar: 9876 5432 1098): ₹22,00,000. Performance appraisal ratings: High Performers list attached.",
             "classification": "RESTRICTED",
             "allowed_users": ["user_hr", "user_admin"],
-            "department": "HR"
+            "department": "HR",
         },
         {
             "id": "doc_fin_01",
@@ -37,7 +62,7 @@ class AccessControlledRAG:
             "content": "CONFIDENTIAL FINANCE REPORT: Q3 Gross Revenue: $4.2M, Net Profit Margin: 18.5%. Cash reserves stand at $1.2M. Projected M&A target budget: $850,000 reserved for Q4 acquisition.",
             "classification": "CONFIDENTIAL",
             "allowed_users": ["user_cfo", "user_finance", "user_admin"],
-            "department": "Finance"
+            "department": "Finance",
         },
         {
             "id": "doc_devops_01",
@@ -45,23 +70,23 @@ class AccessControlledRAG:
             "content": "DEVOPS SECRETS: AWS Primary Production Cluster in us-east-1. Master API Key: AKIAIOSFODNN7EXAMPLE. Master DB Admin Password: AdminP@ssw0rd2024! SSH access via bastion host 192.168.1.105.",
             "classification": "RESTRICTED",
             "allowed_users": ["user_devops", "user_admin"],
-            "department": "DevOps"
+            "department": "DevOps",
         },
         {
             "id": "doc_pub_01",
             "title": "Company Holiday Calendar 2024",
             "content": "PUBLIC INFO: Official Company Holidays 2024. New Year Day: Jan 1, Independence Day: Aug 15, Diwali: Nov 1, Christmas: Dec 25. Standard PTO allowance: 21 days per year.",
             "classification": "PUBLIC",
-            "allowed_users": ["ALL"],  # Accessible to everyone
-            "department": "General"
+            "allowed_users": ["ALL"],
+            "department": "General",
         },
         {
             "id": "doc_gen_01",
             "title": "General Employee Conduct Policy",
             "content": "INTERNAL POLICY: All employees must complete annual security awareness training. Remote work permitted 2 days per week. Use of corporate VPN is mandatory on public Wi-Fi.",
             "classification": "INTERNAL",
-            "allowed_users": ["ALL_AUTHENTICATED"],  # Accessible to any valid user
-            "department": "HR"
+            "allowed_users": ["ALL_AUTHENTICATED"],
+            "department": "HR",
         },
         {
             "id": "doc_project_nexus",
@@ -69,131 +94,147 @@ class AccessControlledRAG:
             "content": "RESTRICTED STRATEGY: Project Nexus acquisition plan for competitor FinTech Corp. Acquisition price target: $15M. Expected closing date: December 2024.",
             "classification": "RESTRICTED",
             "allowed_users": ["user_cfo", "user_admin"],
-            "department": "Executive"
-        }
+            "department": "Executive",
+        },
     ]
 
-    def __init__(self, persist_dir: str = DATA_DIR):
-        """Initialize ChromaDB collection and seed default documents."""
+    def __init__(self, persist_dir: str = DATA_DIR, min_similarity: Optional[float] = None):
         os.makedirs(persist_dir, exist_ok=True)
-        self.client = chromadb.PersistentClient(path=persist_dir)
-        
-        # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name="security_gateway_docs",
-            metadata={"description": "Access-controlled knowledge base"}
+        self.min_similarity = float(
+            min_similarity
+            if min_similarity is not None
+            else os.getenv("RAG_MIN_SIMILARITY", DEFAULT_MIN_SIMILARITY)
         )
-        
-        # Seed documents if empty
+        self.client = chromadb.PersistentClient(path=persist_dir)
+        self.collection = self.client.get_or_create_collection(
+            name=COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+        )
         if self.collection.count() == 0:
             self._seed_database()
 
-    def _seed_database(self):
-        """Seed the ChromaDB database with demo documents."""
-        ids = [doc["id"] for doc in self.SEED_DOCUMENTS]
-        documents = [doc["content"] for doc in self.SEED_DOCUMENTS]
-        metadatas = [
-            {
-                "title": doc["title"],
-                "classification": doc["classification"],
-                "allowed_users": json.dumps(doc["allowed_users"]),
-                "department": doc["department"]
-            }
-            for doc in self.SEED_DOCUMENTS
-        ]
-        
+    # ───────────────────────────── seeding ─────────────────────────────
+    def _seed_database(self) -> None:
         self.collection.add(
-            ids=ids,
-            documents=documents,
-            metadatas=metadatas
-        )
-        print(f"✅ RAG Engine: Successfully seeded {len(ids)} documents into ChromaDB!")
-
-    def _user_has_access(self, user_id: str, allowed_users_json: str) -> bool:
-        """Check if user is authorized to read document based on permission array."""
-        try:
-            allowed_users = json.loads(allowed_users_json)
-        except Exception:
-            return False
-
-        # Access rules:
-        # 1. "ALL" means public access
-        # 2. "ALL_AUTHENTICATED" means any non-anonymous user
-        # 3. Specific user ID matching (e.g., "user_hr", "user_admin")
-        if "ALL" in allowed_users:
-            return True
-        if "ALL_AUTHENTICATED" in allowed_users and user_id != "anonymous":
-            return True
-        if user_id in allowed_users:
-            return True
-
-        return False
-
-    def query(self, query_text: str, user_id: str = "user_general", n_results: int = 3) -> Dict[str, Any]:
-        """
-        Query RAG with Access Control Filtering.
-        Uses Over-Fetching (fetches 3x candidates, filters by user rights).
-        """
-        # Over-fetch candidate results (fetch 3x requested)
-        fetch_limit = min(n_results * 3, self.collection.count())
-        
-        results = self.collection.query(
-            query_texts=[query_text],
-            n_results=fetch_limit
-        )
-
-        allowed_docs = []
-        denied_docs = []
-        context_parts = []
-
-        if results and results["documents"] and results["documents"][0]:
-            docs = results["documents"][0]
-            metas = results["metadatas"][0]
-            ids = results["ids"][0]
-            distances = results["distances"][0] if "distances" in results else [0.0] * len(docs)
-
-            for doc_id, doc_text, metadata, dist in zip(ids, docs, metas, distances):
-                allowed_users_json = metadata.get("allowed_users", "[]")
-                
-                doc_info = {
-                    "id": doc_id,
-                    "title": metadata.get("title", "Untitled"),
-                    "classification": metadata.get("classification", "UNKNOWN"),
-                    "department": metadata.get("department", "General"),
-                    "score": round(1.0 - dist, 4) if dist else 1.0
+            ids=[d["id"] for d in self.SEED_DOCUMENTS],
+            # Title is embedded with the content so title-style queries match.
+            documents=[f'{d["title"]}. {d["content"]}' for d in self.SEED_DOCUMENTS],
+            metadatas=[
+                {
+                    "title": d["title"],
+                    "content": d["content"],
+                    "classification": d["classification"],
+                    "allowed_users": json.dumps(d["allowed_users"]),
+                    "department": d["department"],
                 }
+                for d in self.SEED_DOCUMENTS
+            ],
+        )
+        print(f"[RAG] Seeded {len(self.SEED_DOCUMENTS)} documents into '{COLLECTION_NAME}'")
 
-                if self._user_has_access(user_id, allowed_users_json):
-                    if len(allowed_docs) < n_results:
-                        allowed_docs.append(doc_info)
-                        context_parts.append(f"--- Document: {doc_info['title']} ({doc_info['classification']}) ---\n{doc_text}")
-                else:
-                    denied_docs.append(doc_info)
+    # ─────────────────────────── access control ───────────────────────────
+    @staticmethod
+    def _user_has_access(user_id: Optional[str], allowed_users_json: str) -> bool:
+        try:
+            allowed = json.loads(allowed_users_json)
+        except Exception:
+            return False  # fail closed
 
-        combined_context = "\n\n".join(context_parts) if context_parts else "No relevant allowed documents found."
-        access_violation = len(denied_docs) > 0
+        uid = (user_id or "").strip()
+        if "ALL" in allowed:
+            return True
+        if "ALL_AUTHENTICATED" in allowed and uid.lower() not in _UNAUTHENTICATED:
+            return True
+        return uid in allowed
 
+    # ─────────────────────────────── query ───────────────────────────────
+    def query(
+        self,
+        query_text: str,
+        user_id: str = "user_general",
+        n_results: int = 3,
+        min_similarity: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        threshold = self.min_similarity if min_similarity is None else float(min_similarity)
+        total = self.collection.count()
+
+        if not query_text or not query_text.strip() or total == 0:
+            return self._result([], [], [], 0, threshold)
+
+        fetch_limit = min(max(n_results * 3, 10), total)
+        res = self.collection.query(
+            query_texts=[query_text],
+            n_results=fetch_limit,
+            include=["metadatas", "distances"],
+        )
+
+        ids = res["ids"][0]
+        metas = res["metadatas"][0]
+        dists = res["distances"][0]
+
+        allowed: List[Dict[str, Any]] = []
+        denied: List[Dict[str, Any]] = []
+        parts: List[str] = []
+
+        for doc_id, meta, dist in zip(ids, metas, dists):
+            similarity = round(1.0 - float(dist), 4)
+            if similarity < threshold:
+                continue  # not relevant to this question -> ignore completely
+
+            info = {
+                "id": doc_id,
+                "title": meta.get("title", "Untitled"),
+                "classification": meta.get("classification", "UNKNOWN"),
+                "department": meta.get("department", "General"),
+                "score": similarity,
+            }
+
+            if self._user_has_access(user_id, meta.get("allowed_users", "[]")):
+                if len(allowed) < n_results:
+                    allowed.append(info)
+                    parts.append(
+                        f"--- Document: {info['title']} ({info['classification']}) ---\n"
+                        f"{meta.get('content', '')}"
+                    )
+            else:
+                denied.append(info)
+
+        return self._result(allowed, denied, parts, len(ids), threshold)
+
+    @staticmethod
+    def _result(allowed, denied, parts, examined, threshold) -> Dict[str, Any]:
         return {
-            "context": combined_context,
-            "allowed_docs": allowed_docs,
-            "denied_docs": denied_docs,
-            "access_violation": access_violation,
-            "total_candidates_examined": len(results["documents"][0]) if results and results["documents"] else 0
+            "context": "\n\n".join(parts),  # "" when nothing allowed + relevant
+            "allowed_docs": allowed,
+            "denied_docs": denied,
+            "access_violation": len(denied) > 0,
+            "total_candidates_examined": examined,
+            "min_similarity": threshold,
         }
 
 
-# ─── QUICK TEST / VERIFICATION ───
+# ───────────────── calibration helper: python -m gateway.rag_engine ─────────────────
 if __name__ == "__main__":
-    rag = AccessControlledRAG()
+    import tempfile
 
-    print("\n--- TEST 1: General User asking about salaries ---")
-    res1 = rag.query("What are the employee salaries?", user_id="user_general")
-    print(f"Allowed Docs: {[d['title'] for d in res1['allowed_docs']]}")
-    print(f"Denied Docs:  {[d['title'] for d in res1['denied_docs']]}")
-    print(f"Access Violation Triggered? {res1['access_violation']}")
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        rag = AccessControlledRAG(persist_dir=os.path.join(tmp, "c"))
+        print(f"\nThreshold in use: {rag.min_similarity}\n")
 
-    print("\n--- TEST 2: HR User asking about salaries ---")
-    res2 = rag.query("What are the employee salaries?", user_id="user_hr")
-    print(f"Allowed Docs: {[d['title'] for d in res2['allowed_docs']]}")
-    print(f"Denied Docs:  {[d['title'] for d in res2['denied_docs']]}")
-    print(f"Access Violation Triggered? {res2['access_violation']}")
+        probes = [
+            ("What are the employee salaries?", "user_general"),
+            ("When is Diwali and how many holidays do we get?", "user_general"),
+            ("What is the AWS production password?", "user_general"),
+            ("Tell me about the company acquisition plans", "user_general"),
+            ("How do I bake a chocolate cake?", "user_general"),
+            ("What is Python?", "user_general"),
+        ]
+        for q, user in probes:
+            r = rag.query(q, user, n_results=10, min_similarity=-1.0)  # show everything
+            rows = [(d["score"], "ALLOW", d["title"]) for d in r["allowed_docs"]] + \
+                   [(d["score"], "DENY ", d["title"]) for d in r["denied_docs"]]
+            print(f'Q: "{q}"  (as {user})')
+            for score, verdict, title in sorted(rows, reverse=True):
+                mark = "  <-- kept" if score >= rag.min_similarity else ""
+                print(f"   {score:6.3f}  {verdict}  {title}{mark}")
+            print()
