@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+pydantic
+httpx
+python-dotenv
+google-generativeai
+presidio-analyzer
+presidio-anonymizer
+transformers
+torch
+chromadb
+streamlit
+plotly
+pandas
+requests
+pypdf
+pillow

@@ -1,7 +1,10 @@
 .venv/
 venv/
 __pycache__/
+*.pyc
 *.db
 .env
 chroma_data/
 *.log
+test_results.json
+models/
