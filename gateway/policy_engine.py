@@ -6,67 +6,41 @@ class PolicyEngine:
     """Configurable security policy decision engine."""
 
     def __init__(self):
-        # Default policies
+        # Updated Default Policies based on enterprise best practices
         self.policies = {
-            "pii_in_prompt":     {"action": "redact", "threshold": 0.4},
-            "secrets_in_prompt": {"action": "block",  "threshold": 0.5},
-            "prompt_injection":  {"action": "block",  "threshold": 0.6},
-            "pii_in_response":   {"action": "redact", "threshold": 0.4},
+            "pii_in_prompt":     {"action": "redact"},
+            "secrets_in_prompt": {"action": "redact"},  # Changed from block to redact
+            "prompt_injection":  {"action": "block"},   # Injections still get blocked
+            "pii_in_response":   {"action": "redact"},
         }
-
-        # Routing thresholds
-        self.quarantine_threshold = 0.4  # Score > 0.4 -> Local Qwen
-        self.block_threshold = 0.8       # Score > 0.8 -> Block entirely
 
     def decide(self, risk: RiskAssessment, inspection_result: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Makes the final security and routing decision.
+        Evaluates findings and makes routing decisions.
+        New Logic: If secrets/PII are found, they are masked, making the prompt safe for Gemini.
         """
-        action = risk.recommended_action
+        action = PolicyAction.PASS
         reasons = list(risk.details)
         should_block = False
-        llm_route = LLMRoute.PRIMARY
+        llm_route = LLMRoute.PRIMARY # Default to Gemini
 
-        # Rule 1: Direct Prompt Injection -> BLOCK
+        # Rule 1: Prompt Injection -> Hard BLOCK (cannot be masked)
         if inspection_result.get("injection_detected", False):
             if self.policies["prompt_injection"]["action"] == "block":
                 return self._build_decision(
                     action=PolicyAction.BLOCK,
                     llm_route=LLMRoute.BLOCKED,
                     modified_prompt=None,
-                    reasons=reasons + ["POLICY: Prompt injection detected -> BLOCK"],
+                    reasons=reasons + ["POLICY: Prompt injection detected -> Request Blocked"],
                     should_block=True
                 )
 
-        # Rule 2: Hard Secrets/Credentials -> BLOCK
-        if inspection_result.get("secrets_found", False):
-            if self.policies["secrets_in_prompt"]["action"] == "block":
-                return self._build_decision(
-                    action=PolicyAction.BLOCK,
-                    llm_route=LLMRoute.BLOCKED,
-                    modified_prompt=None,
-                    reasons=reasons + ["POLICY: Secrets/Credentials detected -> BLOCK"],
-                    should_block=True
-                )
-
-        # Rule 3: Score-based LLM Routing
-        if risk.score >= self.block_threshold:
-            should_block = True
-            action = PolicyAction.BLOCK
-            llm_route = LLMRoute.BLOCKED
-            reasons.append(f"ROUTING: Risk score {risk.score} >= Block threshold ({self.block_threshold})")
-
-        elif risk.score >= self.quarantine_threshold:
-            llm_route = LLMRoute.QUARANTINE
-            reasons.append(f"ROUTING: Risk score {risk.score} >= Quarantine threshold ({self.quarantine_threshold}) -> Routed to Local Qwen")
-            if inspection_result.get("pii_count", 0) > 0:
-                action = PolicyAction.REDACT
-                reasons.append("POLICY: PII present -> Prompt sanitized before sending to local model")
-        else:
-            llm_route = LLMRoute.PRIMARY
-            if inspection_result.get("pii_count", 0) > 0:
-                action = PolicyAction.REDACT
-                reasons.append("POLICY: Mild PII present -> Prompt sanitized before sending to Gemini")
+        # Rule 2: Secrets or PII Detected -> MASK & Send to Gemini
+        if inspection_result.get("secrets_found", False) or inspection_result.get("pii_count", 0) > 0:
+            action = PolicyAction.REDACT
+            reasons.append("POLICY: Sensitive Data Detected -> Prompt masked/sanitized.")
+            reasons.append("ROUTING: Sanitized prompt is safe -> Routed to Primary LLM (Gemini).")
+            # We keep llm_route as PRIMARY because the text is now safe!
 
         modified_prompt = inspection_result.get("sanitized_text", None)
 

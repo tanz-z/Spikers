@@ -5,21 +5,15 @@ from gateway.models import Finding, RiskAssessment, RiskLevel, PolicyAction
 class RiskScorer:
     """
     Calculates a unified Risk Score (0.0 to 1.0) based on detected threats.
-    
-    Score Mapping:
-      0.0 - 0.2  -> CLEAN    (Action: PASS)
-      0.2 - 0.4  -> LOW      (Action: WARN)
-      0.4 - 0.6  -> MEDIUM   (Action: QUARANTINE - use Qwen local)
-      0.6 - 0.8  -> HIGH     (Action: REDACT + QUARANTINE)
-      0.8 - 1.0  -> CRITICAL (Action: BLOCK entirely)
+    Handles findings safely to prevent Pydantic reload mismatch errors.
     """
 
-    # Base severity weights per threat type
     WEIGHTS = {
         "SECRET": {
             "AWS_ACCESS": 0.95, "AWS_SECRET": 0.95, "PRIVATE_KEY": 0.95,
             "API_KEY": 0.90, "GENERIC_SECRET": 0.85, "JWT_TOKEN": 0.80,
-            "AADHAAR": 0.80, "PAN": 0.80, "CREDIT_CARD": 0.85, "PASSWORD": 0.90
+            "AADHAAR": 0.80, "PAN": 0.80, "CREDIT_CARD": 0.85, "PASSWORD": 0.90,
+            "HIGH_ENTROPY_TOKEN": 0.85, "CREDENTIAL_PAIR": 0.90
         },
         "INJECTION": {
             "INSTRUCTION_OVERRIDE": 0.95, "JAILBREAK": 0.95,
@@ -30,13 +24,24 @@ class RiskScorer:
         "PII": {
             "US_SSN": 0.85, "CREDIT_CARD": 0.80,
             "PHONE_NUMBER": 0.40, "EMAIL_ADDRESS": 0.35,
-            "PERSON": 0.30, "LOCATION": 0.20, "IP_ADDRESS": 0.40
+            "PERSON": 0.30, "LOCATION": 0.20, "IP_ADDRESS": 0.40, "PASSPORT": 0.80
         }
     }
 
+    def _normalize_finding(self, f: Any) -> Finding:
+        """Converts any Finding instance or dict safely into a Finding model."""
+        if isinstance(f, dict):
+            return Finding(**f)
+        if hasattr(f, 'model_dump'):
+            return Finding(**f.model_dump())
+        if hasattr(f, 'dict'):
+            return Finding(**f.dict())
+        return f
+
     def score_input(self, inspection_result: Dict[str, Any]) -> RiskAssessment:
-        """Calculates Risk Score 1 for incoming user prompt."""
-        findings: List[Finding] = inspection_result.get("findings", [])
+        """Calculates Risk Score 1 for incoming user prompt or file content."""
+        raw_findings = inspection_result.get("findings", [])
+        findings: List[Finding] = [self._normalize_finding(f) for f in raw_findings]
         
         if not findings:
             return RiskAssessment(
@@ -51,18 +56,15 @@ class RiskScorer:
         details = []
 
         for f in findings:
-            # Lookup weight or fallback to 0.5
             weight = self.WEIGHTS.get(f.type, {}).get(f.subtype, 0.5)
             effective_score = weight * f.confidence
             individual_scores.append(effective_score)
             details.append(f"{f.type}/{f.subtype}: score {effective_score:.2f}")
 
-        # Base score is the maximum individual score, plus a small boost for multiple findings
         max_score = max(individual_scores) if individual_scores else 0.0
         count_boost = min(len(individual_scores) * 0.05, 0.15)
         final_score = min(max_score + count_boost, 1.0)
 
-        # SECURITY RULE: If prompt injection is detected, enforce a floor score of 0.75
         if inspection_result.get("injection_detected", False):
             final_score = max(final_score, 0.75)
             details.append("Prompt injection detected -> Enforced minimum risk score 0.75")
@@ -78,8 +80,9 @@ class RiskScorer:
         )
 
     def score_output(self, inspection_result: Dict[str, Any]) -> RiskAssessment:
-        """Calculates Risk Score 2 for LLM response (stricter scoring)."""
-        findings: List[Finding] = inspection_result.get("findings", [])
+        """Calculates Risk Score 2 for LLM response."""
+        raw_findings = inspection_result.get("findings", [])
+        findings: List[Finding] = [self._normalize_finding(f) for f in raw_findings]
 
         if not findings:
             return RiskAssessment(
@@ -95,7 +98,6 @@ class RiskScorer:
 
         for f in findings:
             weight = self.WEIGHTS.get(f.type, {}).get(f.subtype, 0.5)
-            # Output inspection is 20% stricter because model outputs should not contain leaks
             effective_score = min(weight * f.confidence * 1.2, 1.0)
             individual_scores.append(effective_score)
             details.append(f"OUTPUT_{f.type}/{f.subtype}: {effective_score:.2f}")
@@ -114,7 +116,6 @@ class RiskScorer:
         )
 
     def _score_to_decision(self, score: float) -> Tuple[RiskLevel, PolicyAction]:
-        """Maps numeric risk score to RiskLevel and PolicyAction."""
         if score < 0.2:
             return RiskLevel.CLEAN, PolicyAction.PASS
         elif score < 0.4:
