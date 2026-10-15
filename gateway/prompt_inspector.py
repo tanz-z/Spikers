@@ -60,6 +60,8 @@ class Finding(BaseModel):
 #   if 4th char is valid holder type (P,C,H,F,A,T,B,L,J,G).
 # - Phone allows +91, 91, 0 prefixes. Overlap with Aadhaar is resolved later
 #   by span-dedup (Aadhaar wins because higher confidence).
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 SECRET_PATTERNS_RAW = [
     # AADHAAR: 1234 5678 9012 / 123456789012 / 1234-5678-9012
     ("AADHAAR",
