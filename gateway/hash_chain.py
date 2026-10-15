@@ -248,6 +248,7 @@ class HashChainLogger:
         risk_score_output: Optional[float] = None,
         action_taken: Optional[str] = None,
         policy_triggered: Optional[str] = None,
+        timestamp: Optional[str] = None,  # demo seeding only; the API never sets this
     ) -> str:
         """Append one transaction to the chain and return its entry hash."""
         r_in = risk_input if risk_input is not None else (risk_score_input or 0.0)
@@ -259,7 +260,7 @@ class HashChainLogger:
         labels = sorted({_finding_label(f) for f in findings})
         count = len(findings)
         cat = normalize_category(category)
-        ts = datetime.now(timezone.utc).isoformat()
+        ts = timestamp or datetime.now(timezone.utc).isoformat()
 
         with self._lock, closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")  # cross-process write lock
