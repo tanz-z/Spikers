@@ -129,7 +129,7 @@ VALID_PAN_HOLDER = set("PCHFATBLJG")  # 4th char of PAN
 
 
 def _luhn_valid(candidate: str) -> bool:
-    """Luhn checksum. WHY: raw \d{13,16} matches order IDs, phones, Aadhaar
+    r"""Luhn checksum. WHY: raw \d{13,16} matches order IDs, phones, Aadhaar
     fragments. Luhn drops ~90% of those FPs, keeps real cards."""
     digits = re.sub(r"\D", "", candidate)
     if not (13 <= len(digits) <= 16):
@@ -196,7 +196,7 @@ HEURISTIC_RULES_RAW = [
             r"(?i)\b(list|show|dump|export|reveal|leak|disclose|print)\b.{0,30}\b(all\s+users?|user\s+database|entire\s+database|all\s+passwords?|all\s+credentials?|user\s+table)\b",
             r"(?i)\b(dump|export|download|extract)\b.{0,20}\b(database|db|tables?|schema)\b",
             # also covers ACCESS_VIOLATION tests (private/restricted docs)
-            r"(?i)\b(show|access|read|open|fetch|retrieve|get)\b.{0,30}\b(confidential|private|restricted|internal|classified|other\s+users?|another\s+users?|admin'?s?)\b.{0,20}\b(documents?|files?|docs?|data|folders?|records?)\b",
+            r"(?i)\b(show|access|read|open|fetch|retrieve|get)\b.{0,30}\b(confidential|private|restricted|internal|classified|other\s+users?|another\s+users?|admin'?s?)\b.{0,20}\b(documents?|files?|docs?|data|folders?|records?|reports?|statements?|emails?)\b",
         ],
     },
     {
