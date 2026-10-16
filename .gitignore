@@ -1,9 +1,12 @@
-﻿venv/
+venv/
 __pycache__/
 *.pyc
 .env
 test_results.json
+test_image_results.json
 models/
+requirements-freeze-*.txt
 tests/_gen_images/
 tests/_gen_pdfs/
-test_image_results.json
+chroma_db/
+*.log
