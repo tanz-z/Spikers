@@ -22,6 +22,9 @@ requests
 fastapi
 uvicorn
 
+pypdf
+pymupdf
+pillow
 # --- Bhoomi: RAG + dashboard (add only what she actually imports) ---
 # chromadb>=1.0
 # streamlit>=1.30

@@ -4,3 +4,6 @@ __pycache__/
 .env
 test_results.json
 models/
+tests/_gen_images/
+tests/_gen_pdfs/
+test_image_results.json
