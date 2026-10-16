@@ -1,12 +1,28 @@
+# Virtual environments
 venv/
+.venv/
+
+# Python bytecode & caches
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Environment variables & secrets
 .env
+
+# Data & database files (including audit logs)
+data/
+chroma_db/
+*.db
+*.sqlite3
+
+# Test artifacts & generated files
 test_results.json
 test_image_results.json
-models/
-requirements-freeze-*.txt
 tests/_gen_images/
 tests/_gen_pdfs/
-chroma_db/
+
+# Models & build files
+models/
+requirements-freeze-*.txt
 *.log
