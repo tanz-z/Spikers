@@ -16,11 +16,24 @@ st.set_page_config(
 # -------------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Hide Streamlit chrome */
-    header {visibility: hidden;}
+    /* Hide Streamlit chrome.
+       NOTE: do NOT hide the whole <header>. It contains the arrow that re-opens a
+       collapsed sidebar. We only make it transparent and hide the toolbar/menu. */
+    header[data-testid="stHeader"] {background: transparent !important;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+    [data-testid="stAppDeployButton"] {display: none;}
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .stDeployButton {display: none;}
+
+    /* Always show the button that re-opens a collapsed sidebar.
+       The test id differs between Streamlit versions, so all three are listed. */
+    [data-testid="stExpandSidebarButton"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"] {
+        visibility: visible !important;
+        display: flex !important;
+    }
 
     /* Main container */
     .block-container {

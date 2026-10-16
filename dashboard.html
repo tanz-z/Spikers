@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spikers | Gateway dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+:root{--mut:#64748b;--line:#e2e8f0;--ind:#6366f1;--rose:#f43f5e;--amb:#f59e0b;--grn:#10b981}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;color:#1e293b;font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:linear-gradient(135deg,#f8fafc,#f1f5f9 50%,#e2e8f0)}
+.mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+header{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 24px;background:rgba(255,255,255,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.brand,.right{display:flex;align-items:center;gap:12px}.logo{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#1e293b,#4f46e5 60%,#7c3aed);box-shadow:0 6px 16px rgba(99,102,241,.3)}
+.brand b{display:block;font-size:16px}.brand span,.mut{color:var(--mut);font-size:12px}
+.nav{margin-left:16px;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;font-weight:500}
+#live{display:flex;align-items:center;gap:6px;color:#059669;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border:0;background:none}
+#live i{width:8px;height:8px;border-radius:50%;background:var(--grn);animation:p 2s infinite}#live.off{color:var(--mut)}#live.off i{background:#94a3b8;animation:none}
+@keyframes p{50%{opacity:.4;transform:scale(1.4)}}
+select,.btn{font:inherit;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#334155}
+:focus-visible{outline:2px solid var(--ind);outline-offset:2px}
+main{max-width:1600px;margin:0 auto;padding:24px;display:grid;gap:16px}
+.top{display:grid;grid-template-columns:minmax(220px,1fr) 3fr;gap:24px}.hero{align-self:center}
+.hero h2{font-size:clamp(36px,4.4vw,58px);line-height:.98;letter-spacing:-.04em;font-weight:500;margin:0}
+.hero em{font-style:normal;font-weight:700;background:linear-gradient(135deg,#1e1b4b,#6366f1 55%,#8b5cf6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--mut);margin:14px 0 0;max-width:30ch}
+.stack{display:grid;gap:16px}.g4,.g3{display:grid;gap:16px}.g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+.row{display:grid;gap:16px;grid-template-columns:2fr 1fr}
+@media(max-width:1024px){.top,.row{grid-template-columns:1fr}}
+.card{background:rgba(255,255,255,.88);border:1px solid rgba(226,232,240,.9);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+.lab{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:0 0 12px}
+.kpi{display:flex;justify-content:space-between;gap:8px}.kpi b{display:block;font-size:30px;margin:6px 0 8px}.tile{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none}
+.c{display:grid;place-items:center;position:relative}.c svg{display:block}.c .mid{position:absolute;text-align:center}.mid b{font-size:44px;display:block;line-height:1}
+.box{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;width:100%;text-align:center;font-size:11px}.box div{padding:7px;border-radius:8px;border:1px solid}
+.leg{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;margin-top:10px}.leg span{display:flex;gap:6px;align-items:center}.leg i{width:9px;height:9px;border-radius:50%}.leg b{margin-left:auto}
+.bar{display:grid;grid-template-columns:120px 1fr 26px;gap:8px;align-items:center;margin:6px 0;font-size:12px}.bar i{display:block;height:7px;border-radius:4px;background:linear-gradient(90deg,#6366f1,#8b5cf6)}.bar span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;padding:8px;color:var(--mut);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid #f1f5f9;vertical-align:top}tbody tr{cursor:pointer}tbody tr:hover{background:#f8fafc}
+.b{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;margin:0 4px 2px 0;border:1px solid}
+.block{background:#fff1f2;color:#be123c;border-color:#fecdd3}.mask{background:#fffbeb;color:#b45309;border-color:#fde68a}.allow{background:#ecfdf5;color:#047857;border-color:#a7f3d0}.inj{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}.pii{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
+.rb{width:64px;height:4px;background:#e2e8f0;border-radius:2px;margin-top:4px;overflow:hidden}.rb i{display:block;height:100%}
+.hs{display:flex;flex-wrap:wrap;gap:22px 10px;justify-content:center;margin:6px 0 16px}.hb{position:relative;width:62px;height:34px;display:grid;place-items:center;font-size:10px;color:#475569;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border:1px solid #cbd5e1;border-radius:8px;transition:.3s}
+.hb:not(:last-child)::after{content:"";position:absolute;right:-11px;top:50%;width:11px;height:1.5px;background:#cbd5e1}.hb.ok{background:#d1fae5;border-color:var(--grn);color:#065f46}
+.ver{border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857}.ver.bad{background:#fff1f2;border-color:#fecdd3;color:#be123c}
+.dark{width:100%;margin-top:12px;background:linear-gradient(90deg,#1e293b,#0f172a);color:#fff;border:0;border-radius:12px;padding:10px;font-weight:600}
+aside{position:fixed;top:0;right:0;height:100%;width:min(460px,100%);z-index:9;background:#fff;border-left:1px solid var(--line);padding:20px;overflow:auto;transform:translateX(100%);transition:transform .2s;box-shadow:-8px 0 30px rgba(15,23,42,.08)}aside.open{transform:none}
+.ev{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}.ctx{font:12px/1.6 "JetBrains Mono",ui-monospace,monospace;background:#f8fafc;border-radius:8px;padding:10px;margin-top:8px;word-break:break-word}
+mark{background:#ffe4e6;color:#9f1239;padding:1px 3px;border-radius:3px;font-weight:600}
+#err{display:none;background:#fff1f2;color:#be123c;padding:10px 24px;font-weight:500}.empty{color:var(--mut);padding:10px 0;font-size:12px}
+@media(prefers-reduced-motion:reduce){aside,.hb,#live i{transition:none;animation:none}}
+</style></head><body>
+<header><div class="brand"><div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM9 12l2 2 4-4"/></svg></div><div><b>Spikers</b><span>Enterprise AI Gateway</span></div><span class="nav">Dashboard</span></div>
+<div class="right"><button id="live" title="Pause or resume auto refresh"><i></i>Live</button><span class="mut mono" id="clock"></span>
+<select id="rng" aria-label="Time range"><option value="15">Last 15 minutes</option><option value="60" selected>Last hour</option><option value="1440">Last 24 hours</option><option value="10080">Last 7 days</option></select></div></header>
+<div id="err">Can't reach the gateway. Check that the FastAPI server is running on this address.</div>
+<main>
+<section class="top"><div class="hero"><h2>Every prompt,<br><em>inspected.</em></h2><p>What the gateway blocked, masked and let through, and where each injection came from.</p></div>
+<div class="stack"><div class="g4" id="kpis"></div>
+<div class="g3"><div class="card c"><p class="lab" style="align-self:start">Live risk score</p><div class="c"><svg id="gauge" width="180" height="180" viewBox="0 0 180 180"></svg><div class="mid"><b class="mono" id="gv">0</b><span class="lab" id="gl"></span></div></div>
+<div class="box"><div style="background:#ecfdf5;border-color:#a7f3d0">0–40<br>Low</div><div style="background:#fffbeb;border-color:#fde68a">40–70<br>Elevated</div><div style="background:#fff1f2;border-color:#fecdd3">70+<br>High</div></div></div>
+<div class="card"><p class="lab">Detection breakdown</p><div class="c"><svg id="donut" width="180" height="180" viewBox="0 0 180 180"></svg></div><div class="leg" id="dleg"></div></div>
+<div class="card"><p class="lab">Activity timeline</p><svg id="tl" viewBox="0 0 400 130" preserveAspectRatio="none" style="width:100%;height:170px"></svg><div class="leg" style="grid-template-columns:repeat(3,auto)"><span><i style="background:var(--ind)"></i>All requests</span><span><i style="background:var(--amb)"></i>Masked</span><span><i style="background:var(--rose)"></i>Blocked</span></div></div></div></div></section>
+<section class="card"><p class="lab">Where injection happens</p><div class="g4"><div><div class="mut">Source</div><div id="b-src"></div></div><div><div class="mut">Technique</div><div id="b-tech"></div></div><div><div class="mut">Detected by</div><div id="b-lay"></div></div><div><div class="mut">User</div><div id="b-usr"></div></div></div></section>
+<section class="row"><div class="card"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:12px"><p class="lab" style="margin:0">Live incident feed</p><span><select id="flt" aria-label="Filter"><option value="all">All requests</option><option value="injection">Injection</option><option value="pii">Sensitive data</option><option value="blocked">Blocked</option></select> <button class="btn" id="exp">Export CSV</button></span></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>User</th><th>Found</th><th>Risk</th><th>Action</th><th>Where</th></tr></thead><tbody id="rows"></tbody></table></div><div class="empty" id="none" hidden>No requests in this range. Send a message through the gateway.</div></div>
+<div class="card"><div style="display:flex;justify-content:space-between"><p class="lab">Audit log integrity</p><b id="vb" style="color:#059669;font-size:12px"></b></div><p class="mut" style="margin-top:0">Tamper-evident hash chain: each request's hash includes the one before it.</p><div class="hs" id="hs"></div><div class="ver" id="ver"></div>
+<button class="dark" id="vbtn">Verify integrity</button><div class="g4" style="margin-top:14px;grid-template-columns:1fr 1fr"><div><div class="mut">Total blocks</div><b class="mono" id="nb">0</b></div><div><div class="mut">Algorithm</div><b class="mono">SHA-256</b></div></div></div></section>
+</main>
+<aside id="panel" aria-label="Request details"></aside>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const SRC={prompt:"Typed prompt",file:"Uploaded file",rag:"Retrieved doc",combined:"Prompt + file (scanned together)"},nice=t=>String(t).replaceAll("_"," ").toLowerCase();
+const cls=a=>a.includes("block")?"block":/mask|redact|sanit/.test(a)?"mask":"allow";
+let live=true,data=[];
+const tile=(c,d)=>`<div class="tile" style="background:${c}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></div>`;
+const ICON=["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM9 12l2 2 4-4","M12 4l9 16H3L12 4zM12 10v4M12 17h.01","M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.7 9.7 0 0112 5c4.5 0 8.3 2.9 9.5 7a10 10 0 01-2.2 3.7M6.6 6.6A10 10 0 002.5 12c1.2 4.1 5 7 9.5 7a9.7 9.7 0 004-.9","M13 3L4 14h7l-1 7 9-11h-7l1-7z"];
+function bars(el,o,f=k=>k){const e=Object.entries(o).sort((a,b)=>b[1]-a[1]),m=Math.max(1,...e.map(x=>x[1]));$(el).innerHTML=e.length?e.map(([k,v])=>`<div class="bar"><span title="${esc(k)}">${esc(f(k))}</span><i style="width:${v/m*100}%"></i><b>${v}</b></div>`).join(""):'<div class="empty">None in this range</div>'}
+function gauge(v){const C=2*Math.PI*75,s=C*.75,c=v<40?"#10b981":v<70?"#f59e0b":"#f43f5e";
+ $("#gauge").innerHTML=`<g transform="rotate(135 90 90)" fill="none" stroke-linecap="round" stroke-width="14"><circle cx="90" cy="90" r="75" stroke="#e2e8f0" stroke-dasharray="${s} ${C}"/><circle cx="90" cy="90" r="75" stroke="${c}" stroke-dasharray="${s*v/100} ${C}"/></g>`;
+ $("#gv").textContent=v;$("#gl").textContent=v<40?"Low risk":v<70?"Elevated":"High risk";$("#gl").style.color=c}
+function donut(o){const C=2*Math.PI*70,e=Object.entries(o),t=e.reduce((a,b)=>a+b[1],0),col={INJECTION:"#f59e0b",PII:"#f43f5e",SECRET:"#8b5cf6"},nm={INJECTION:"Prompt injection",PII:"PII",SECRET:"Secrets and keys"};let off=0,sv="";
+ for(const [k,v] of e){const l=C*v/t;sv+=`<circle cx="90" cy="90" r="70" fill="none" stroke="${col[k]||"#6366f1"}" stroke-width="22" stroke-dasharray="${l} ${C-l}" stroke-dashoffset="${-off}" transform="rotate(-90 90 90)"/>`;off+=l}
+ $("#donut").innerHTML=t?sv:'<circle cx="90" cy="90" r="70" fill="none" stroke="#e2e8f0" stroke-width="22"/>';
+ $("#dleg").innerHTML=t?e.map(([k,v])=>`<span><i style="background:${col[k]||"#6366f1"}"></i>${nm[k]||esc(k)}<b>${Math.round(v/t*100)}%</b></span>`).join(""):'<div class="empty">No findings yet</div>'}
+function line(tl){const W=400,H=130,m=Math.max(1,...tl.map(t=>t.total)),p=k=>tl.map((t,i)=>`${i*W/(tl.length-1)},${H-t[k]/m*(H-6)}`).join(" "),ln=(k,c)=>`<polyline points="${p(k)}" fill="none" stroke="${c}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+ $("#tl").innerHTML=`<polygon points="0,${H} ${p("total")} ${W},${H}" fill="rgba(99,102,241,.1)"/>`+ln("total","#6366f1")+ln("masked","#f59e0b")+ln("blocked","#f43f5e")}
+function draw(s,e){const k=s.kpis,pc=k.total?Math.round(k.blocked/k.total*100):0;
+ const K=[["Requests scanned",k.total,`${k.injection} contained injection`,"linear-gradient(135deg,#6366f1,#8b5cf6)","#4338ca"],["Threats blocked",k.blocked,`${pc}% of requests`,"linear-gradient(135deg,#f43f5e,#ec4899)","#e11d48"],["Sensitive items masked",k.masked_items,`${Object.keys(s.pii_by_type).length} data types`,"linear-gradient(135deg,#f59e0b,#f97316)","#d97706"],["Median latency",k.median_latency==null?"–":k.median_latency+" ms",k.p95_latency==null?"":`P95: ${k.p95_latency} ms`,"linear-gradient(135deg,#10b981,#14b8a6)","#059669"]];
+ $("#kpis").innerHTML=K.map((x,i)=>`<div class="card kpi"><div><span class="lab">${x[0]}</span><b class="mono" style="color:${x[4]}">${x[1]}</b><span class="mut">${x[2]}</span></div>${tile(x[3],ICON[i])}</div>`).join("");
+ gauge(k.live_risk);donut(s.by_type);line(s.timeline);
+ bars("#b-src",s.by_source,k=>SRC[k]||k);bars("#b-tech",s.by_technique,nice);bars("#b-lay",s.by_layer,k=>k=="ml"?"ML classifier":"Rules");bars("#b-usr",s.by_user);
+ $("#none").hidden=e.length>0;
+ $("#rows").innerHTML=e.map((r,i)=>{const f=r.findings,a=r.action||"",sc=Math.round((r.risk_score||0)*100),u=x=>[...new Set(x)];
+  const tg=u(f.filter(x=>x.type=="INJECTION").map(x=>x.subtype)).map(t=>`<span class="b inj">${esc(nice(t))}</span>`).join("")+u(f.filter(x=>x.type!="INJECTION").map(x=>x.subtype)).map(t=>`<span class="b pii">${esc(t.toLowerCase())}</span>`).join("")||'<span class="mut">Nothing found</span>';
+  const wh=u(f.filter(x=>x.type=="INJECTION").map(x=>SRC[x.source]||x.source)).join(", ")||"–",col=sc>=70?"#f43f5e":sc>=40?"#f59e0b":"#10b981";
+  return `<tr tabindex="0" data-i="${i}"><td class="mono">${new Date(r.ts*1000).toLocaleTimeString()}</td><td><span class="b" style="background:#f1f5f9;border-color:#e2e8f0;color:#334155">${esc(r.user_id)}</span></td><td>${tg}</td><td class="mono" style="color:${col}"><b>${sc}</b><div class="rb"><i style="width:${sc}%;background:${col}"></i></div></td><td><span class="b ${cls(a)}">${esc(a)}</span></td><td>${esc(wh)}</td></tr>`}).join("")}
+async function audit(anim){const a=await fetch("/api/dash/audit").then(r=>r.json());
+ $("#hs").innerHTML=a.tail.length?a.tail.map(h=>`<div class="hb mono">${h}</div>`).join(""):'<div class="empty">No chained entries yet</div>';
+ $("#ver").className="ver"+(a.verified?"":" bad");$("#ver").textContent=a.verified?`Chain verified. No tampering detected. Last check ${new Date().toLocaleTimeString()}`:`Chain broken at request ${a.broken_at}. A record was changed or removed.`;
+ $("#vb").textContent=a.verified?"Verified":"Tampered";$("#vb").style.color=a.verified?"#059669":"#be123c";$("#nb").textContent=a.blocks.toLocaleString();
+ if(anim)document.querySelectorAll(".hb").forEach((b,i)=>setTimeout(()=>{b.classList.add("ok");setTimeout(()=>b.classList.remove("ok"),800)},i*200))}
+async function load(){try{const r=$("#rng").value,[s,e]=await Promise.all([fetch(`/api/dash/summary?minutes=${r}`).then(x=>x.json()),fetch(`/api/dash/events?kind=${$("#flt").value}&minutes=${r}`).then(x=>x.json())]);
+ $("#err").style.display="none";data=e;draw(s,e);await audit(false)}catch(x){$("#err").style.display="block"}}
+function open_(i){const r=data[i],p=$("#panel"),inj=r.findings.filter(x=>x.type=="INJECTION"),oth=r.findings.filter(x=>x.type!="INJECTION");
+ p.innerHTML=`<button class="btn" id="x" style="float:right">Close</button><h3 style="margin:0 0 4px">Request ${r.id}</h3><div class="mut">${new Date(r.ts*1000).toLocaleString()} · ${esc(r.user_id)} · ${esc(r.action)} · model: ${esc(r.llm_used||"none")}</div><p class="lab" style="margin-top:18px">Where the injection happened</p>`+(inj.length?inj.map(f=>`<div class="ev"><span class="b inj">${esc(nice(f.subtype))}</span> in <b>${SRC[f.source]||esc(f.source)}</b><div class="mut">${f.layer=="ml"?"ML classifier":"Rule match"}, confidence ${(+f.confidence).toFixed(2)}</div>${f.hit||f.pre||f.post?`<div class="ctx">${esc(f.pre)}<mark>${esc(f.hit)}</mark>${esc(f.post)}</div>`:'<div class="mut">The ML classifier scores the whole text, so no single phrase is highlighted.</div>'}</div>`).join(""):'<div class="empty">No injection in this request.</div>')+`<p class="lab" style="margin-top:18px">Sensitive data</p>`+(oth.length?oth.map(f=>`<div class="ev"><span class="b pii">${esc(f.subtype.toLowerCase())}</span> in ${SRC[f.source]||esc(f.source)}<div class="mut">Values are never stored.</div></div>`).join(""):'<div class="empty">None found.</div>');
+ p.classList.add("open");$("#x").onclick=()=>p.classList.remove("open")}
+$("#rows").onclick=e=>{const t=e.target.closest("tr");t&&open_(+t.dataset.i)};$("#rows").onkeydown=e=>{if(e.key=="Enter"){const t=e.target.closest("tr");t&&open_(+t.dataset.i)}};
+$("#rng").onchange=$("#flt").onchange=load;$("#vbtn").onclick=()=>audit(true);
+$("#live").onclick=e=>{live=!live;e.currentTarget.classList.toggle("off",!live)};
+$("#exp").onclick=()=>{const q=v=>`"${String(v).replaceAll('"','""')}"`,rows=[["time","user","action","risk","found","where"],...data.map(r=>[new Date(r.ts*1000).toISOString(),r.user_id,r.action,r.risk_score,r.findings.map(f=>f.subtype).join("; "),r.findings.map(f=>f.source).join("; ")])];
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv"}));a.download="gateway_log.csv";a.click()};
+document.onkeydown=e=>{if(e.key=="Escape")$("#panel").classList.remove("open")};
+setInterval(()=>$("#clock").textContent=new Date().toUTCString().slice(17,25)+" UTC",1000);
+load();setInterval(()=>live&&load(),3000);
+</script></body></html>
