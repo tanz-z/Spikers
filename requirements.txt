@@ -31,9 +31,9 @@ pypdf
 pymupdf
 pillow
 
-# --- RAG & Dashboard ---
+# --- RAG & Dashboard / Chat UI ---
 chromadb>=1.0
-streamlit>=1.40
+streamlit>=1.43
 plotly>=5.24
 pandas>=2.2
 
