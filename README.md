@@ -1,4 +1,4 @@
-# Spikers: AI Security Gateway & Tamper-Proof Audit Ledger
+#  AI Security Gateway & Tamper-Proof Audit Ledger
 
 An enterprise security reverse proxy and compliance engine for Large Language Models. **Spikers** provides multi-modal input/output sanitization, prompt injection defense, role-based access control (RBAC), and RAG knowledge boundary enforcement. It supports hybrid LLM routing across local inference (**Ollama: `qwen2.5:7b`**) and cloud reasoning (**Google Gemini**), while logging all transactions to an HMAC-keyed, SHA-256 tamper-evident cryptographic ledger.
 
