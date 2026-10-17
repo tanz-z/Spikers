@@ -30,6 +30,7 @@ protobuf
 pypdf
 pymupdf
 pillow
+rapidocr_onnxruntime
 
 # --- RAG & Dashboard / Chat UI ---
 chromadb>=1.0
